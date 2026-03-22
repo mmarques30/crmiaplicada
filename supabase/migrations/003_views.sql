@@ -35,21 +35,30 @@ ORDER BY p.product, s.display_order;
 
 -- View: tempo medio no estagio (deals fechados)
 CREATE OR REPLACE VIEW avg_time_in_stage AS
+WITH stage_transitions AS (
+  SELECT
+    a.id,
+    a.deal_id,
+    a.created_at,
+    d.pipeline_id,
+    (a.metadata->>'new_stage_id')::UUID AS stage_id,
+    LEAD(a.created_at) OVER (PARTITION BY a.deal_id ORDER BY a.created_at) AS next_created_at
+  FROM activities a
+  JOIN deals d ON a.deal_id = d.id
+  WHERE a.type = 'stage_change'
+)
 SELECT
   p.product,
   s.name AS stage_name,
   s.display_order,
-  COUNT(a.id) AS transitions,
+  COUNT(st.id) AS transitions,
   AVG(
-    EXTRACT(EPOCH FROM (
-      LEAD(a.created_at) OVER (PARTITION BY a.deal_id ORDER BY a.created_at) - a.created_at
-    )) / 86400
+    EXTRACT(EPOCH FROM (st.next_created_at - st.created_at)) / 86400
   )::NUMERIC(10,1) AS avg_days
-FROM activities a
-JOIN deals d ON a.deal_id = d.id
-JOIN stages s ON (a.metadata->>'new_stage_id')::UUID = s.id
-JOIN pipelines p ON d.pipeline_id = p.id
-WHERE a.type = 'stage_change'
+FROM stage_transitions st
+JOIN stages s ON st.stage_id = s.id
+JOIN pipelines p ON st.pipeline_id = p.id
+WHERE st.next_created_at IS NOT NULL
 GROUP BY p.product, s.name, s.display_order
 ORDER BY p.product, s.display_order;
 
