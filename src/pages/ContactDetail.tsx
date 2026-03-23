@@ -1,53 +1,52 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Mail, Phone, Briefcase, Clock } from 'lucide-react'
-import { cn, formatCurrency, productColor, productLabel, qualificationColor } from '@/lib/utils'
-import type { ContactWithDeals, Deal } from '@/lib/types'
+import { ArrowLeft, Mail, Phone, Briefcase, Clock, MessageSquare, FileText, Loader2, ExternalLink, User } from 'lucide-react'
+import { cn, formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
+import { useContact } from '@/hooks/useContacts'
+import type { DealWithStage } from '@/lib/types'
 
-const now = new Date().toISOString()
-
-const mockContacts: Record<string, ContactWithDeals> = {
-  c1: {
-    id: 'c1', hubspot_id: null, first_name: 'Maria', last_name: 'Silva', email: 'maria@empresax.com', phone: '(11) 99999-1234', company: 'Empresa X', cargo: 'CEO', numero_de_liderados: '50', faixa_de_faturamento: '1M-5M', renda_mensal: null, motivo_para_aprender_ia: 'Automatizar processos', objetivo_com_a_comunidade: 'Networking', produto_interesse: ['business'], manychat_id: null, whatsapp_opt_in: true, utm_source: 'google', utm_medium: 'cpc', utm_campaign: 'ia-2026', utm_term: null, owner_id: null, created_at: '2026-01-15T00:00:00Z', updated_at: now,
-    deals: [
-      { id: 'd1', hubspot_id: null, name: 'Consultoria IA - Empresa X', contact_id: 'c1', pipeline_id: 'pipe-business-1', stage_id: 's1', product: 'business', amount: 15000, qualification_status: 'mql', canal_origem: 'site', motivo_perda: null, ultimo_contato: now, stage_entered_at: '2026-03-18T00:00:00Z', owner_id: null, closed_at: null, is_won: null, created_at: now, updated_at: now },
-    ],
-  },
-  c2: {
-    id: 'c2', hubspot_id: null, first_name: 'João', last_name: 'Oliveira', email: 'joao@techinova.com', phone: '(21) 98888-5678', company: 'TechInova', cargo: 'CTO', numero_de_liderados: '20', faixa_de_faturamento: '500K-1M', renda_mensal: null, motivo_para_aprender_ia: 'Melhorar produto', objetivo_com_a_comunidade: 'Aprendizado', produto_interesse: ['business', 'skills'], manychat_id: null, whatsapp_opt_in: true, utm_source: 'instagram', utm_medium: 'social', utm_campaign: null, utm_term: null, owner_id: null, created_at: '2026-02-10T00:00:00Z', updated_at: now,
-    deals: [
-      { id: 'd2', hubspot_id: null, name: 'Treinamento IA Equipe', contact_id: 'c2', pipeline_id: 'pipe-business-1', stage_id: 's2', product: 'business', amount: 28000, qualification_status: 'sql', canal_origem: 'indicação', motivo_perda: null, ultimo_contato: now, stage_entered_at: '2026-03-15T00:00:00Z', owner_id: null, closed_at: null, is_won: null, created_at: now, updated_at: now },
-    ],
-  },
-  c3: {
-    id: 'c3', hubspot_id: null, first_name: 'Ana', last_name: 'Costa', email: 'ana@globalcorp.com', phone: '(11) 97777-9012', company: 'GlobalCorp', cargo: 'Diretora de Operações', numero_de_liderados: '100', faixa_de_faturamento: '5M-10M', renda_mensal: null, motivo_para_aprender_ia: null, objetivo_com_a_comunidade: null, produto_interesse: ['business'], manychat_id: null, whatsapp_opt_in: false, utm_source: null, utm_medium: null, utm_campaign: null, utm_term: null, owner_id: null, created_at: '2026-01-20T00:00:00Z', updated_at: now,
-    deals: [
-      { id: 'd3', hubspot_id: null, name: 'Automação Processos', contact_id: 'c3', pipeline_id: 'pipe-business-1', stage_id: 's3', product: 'business', amount: 42000, qualification_status: 'sql', canal_origem: 'webinar', motivo_perda: null, ultimo_contato: now, stage_entered_at: '2026-03-10T00:00:00Z', owner_id: null, closed_at: null, is_won: null, created_at: now, updated_at: now },
-    ],
-  },
+const lifecycleLabels: Record<string, string> = {
+  subscriber: 'Subscriber',
+  lead: 'Lead',
+  marketingqualifiedlead: 'MQL',
+  salesqualifiedlead: 'SQL',
+  opportunity: 'Oportunidade',
+  customer: 'Cliente',
+  evangelist: 'Evangelista',
 }
 
-const mockActivities = [
-  { id: 'a1', type: 'email' as const, subject: 'Apresentação de proposta', body: 'Envio da proposta comercial', created_at: '2026-03-20T14:30:00Z' },
-  { id: 'a2', type: 'call' as const, subject: 'Ligação de follow-up', body: 'Discutido escopo do projeto', created_at: '2026-03-18T10:00:00Z' },
-  { id: 'a3', type: 'whatsapp' as const, subject: 'Mensagem WhatsApp', body: 'Confirmação de reunião', created_at: '2026-03-16T09:15:00Z' },
-  { id: 'a4', type: 'meeting' as const, subject: 'Reunião inicial', body: 'Primeiro contato com o lead', created_at: '2026-03-14T15:00:00Z' },
-  { id: 'a5', type: 'note' as const, subject: 'Nota interna', body: 'Lead demonstrou interesse no produto Business', created_at: '2026-03-12T11:00:00Z' },
-]
+const lifecycleColors: Record<string, string> = {
+  subscriber: 'bg-gray-100 text-gray-700',
+  lead: 'bg-blue-100 text-blue-700',
+  marketingqualifiedlead: 'bg-indigo-100 text-indigo-700',
+  salesqualifiedlead: 'bg-purple-100 text-purple-700',
+  opportunity: 'bg-amber-100 text-amber-700',
+  customer: 'bg-green-100 text-green-700',
+}
 
-const activityIcon: Record<string, string> = {
-  email: 'bg-blue-100 text-blue-600',
-  call: 'bg-green-100 text-green-600',
-  whatsapp: 'bg-emerald-100 text-emerald-600',
-  meeting: 'bg-purple-100 text-purple-600',
-  note: 'bg-gray-100 text-gray-600',
-  stage_change: 'bg-orange-100 text-orange-600',
+const activityIcon: Record<string, { bg: string; Icon: typeof Mail }> = {
+  email: { bg: 'bg-blue-100 text-blue-600', Icon: Mail },
+  call: { bg: 'bg-green-100 text-green-600', Icon: Phone },
+  whatsapp: { bg: 'bg-emerald-100 text-emerald-600', Icon: MessageSquare },
+  meeting: { bg: 'bg-purple-100 text-purple-600', Icon: Briefcase },
+  note: { bg: 'bg-gray-100 text-gray-600', Icon: FileText },
+  stage_change: { bg: 'bg-orange-100 text-orange-600', Icon: Clock },
 }
 
 function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null
   return (
     <div className="flex justify-between py-2 border-b border-gray-100 last:border-0">
       <span className="text-sm text-gray-500">{label}</span>
-      <span className="text-sm font-medium text-gray-900">{value ?? '-'}</span>
+      <span className="text-sm font-medium text-gray-900 text-right max-w-[60%]">{value}</span>
+    </div>
+  )
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border bg-white p-5 shadow-sm">
+      <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500">{title}</h2>
+      {children}
     </div>
   )
 }
@@ -55,108 +54,145 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
 export default function ContactDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { data: contact, activities, loading, error } = useContact(id ?? '')
 
-  const contact = mockContacts[id ?? ''] ?? mockContacts.c1
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    )
+  }
 
-  if (!contact) return <div className="p-8 text-gray-500">Contato não encontrado.</div>
+  if (error || !contact) {
+    return (
+      <div className="space-y-4">
+        <button onClick={() => navigate('/contacts')} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
+          <ArrowLeft className="h-4 w-4" /> Voltar
+        </button>
+        <p className="text-gray-500">Contato não encontrado.</p>
+      </div>
+    )
+  }
+
+  const fullName = `${contact.first_name}${contact.last_name ? ' ' + contact.last_name : ''}`
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         <button
           onClick={() => navigate('/contacts')}
           className="rounded-lg border p-2 text-gray-500 hover:bg-gray-50"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {contact.first_name} {contact.last_name}
-          </h1>
-          <p className="text-sm text-gray-500">{contact.company} &middot; {contact.cargo}</p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 font-bold text-lg">
+            {contact.first_name?.[0]?.toUpperCase() ?? '?'}
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{fullName}</h1>
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              {contact.company && <span>{contact.company}</span>}
+              {contact.cargo && <span>&middot; {contact.cargo}</span>}
+              {contact.lifecycle_stage && (
+                <span className={cn('ml-2 rounded-full px-2 py-0.5 text-xs font-medium', lifecycleColors[contact.lifecycle_stage] ?? 'bg-gray-100 text-gray-600')}>
+                  {lifecycleLabels[contact.lifecycle_stage] ?? contact.lifecycle_stage}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Left panel: Contact Info */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500">Informações de Contato</h2>
-            <div className="space-y-1">
-              <InfoRow label="Email" value={contact.email} />
-              <InfoRow label="Telefone" value={contact.phone} />
-              <InfoRow label="Empresa" value={contact.company} />
-              <InfoRow label="Cargo" value={contact.cargo} />
-              <InfoRow label="Liderados" value={contact.numero_de_liderados} />
-              <InfoRow label="Faturamento" value={contact.faixa_de_faturamento} />
-              <InfoRow label="WhatsApp Opt-in" value={contact.whatsapp_opt_in ? 'Sim' : 'Não'} />
-            </div>
-          </div>
+      {/* Quick actions */}
+      <div className="flex gap-2">
+        {contact.email && (
+          <a href={`mailto:${contact.email}`} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+            <Mail className="h-4 w-4" /> Email
+          </a>
+        )}
+        {contact.phone && (
+          <a href={`tel:${contact.phone}`} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+            <Phone className="h-4 w-4" /> Ligar
+          </a>
+        )}
+        {contact.whatsapp && (
+          <a href={`https://wa.me/${contact.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm text-green-700 hover:bg-green-50">
+            <MessageSquare className="h-4 w-4" /> WhatsApp
+          </a>
+        )}
+        {contact.hubspot_id && (
+          <a href={`https://app.hubspot.com/contacts/48aborei/contact/${contact.hubspot_id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm text-orange-700 hover:bg-orange-50">
+            <ExternalLink className="h-4 w-4" /> HubSpot
+          </a>
+        )}
+      </div>
 
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500">Interesses</h2>
-            <div className="space-y-1">
-              <InfoRow label="Motivo IA" value={contact.motivo_para_aprender_ia} />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* LEFT COLUMN — Properties */}
+        <div className="lg:col-span-1 space-y-4">
+          <Section title="Informações Básicas">
+            <div className="space-y-0">
+              <InfoRow label="Email" value={contact.email} />
+              <InfoRow label="WhatsApp" value={contact.whatsapp} />
+              <InfoRow label="Telefone" value={contact.phone} />
+              <InfoRow label="Ciclo de Vida" value={lifecycleLabels[contact.lifecycle_stage ?? ''] ?? contact.lifecycle_stage} />
+              <InfoRow label="Status do Lead" value={contact.lead_status} />
+              <InfoRow label="Fonte" value={contact.fonte_registro} />
+            </div>
+          </Section>
+
+          <Section title="Informações - Academy">
+            <div className="space-y-0">
+              <InfoRow label="Renda Mensal" value={contact.renda_mensal} />
+              <InfoRow label="Motivo para IA" value={contact.motivo_para_aprender_ia} />
               <InfoRow label="Objetivo" value={contact.objetivo_com_a_comunidade} />
             </div>
-            <div className="mt-3 flex flex-wrap gap-1">
-              {contact.produto_interesse?.map((p) => (
-                <span
-                  key={p}
-                  className={cn('rounded-full px-2 py-0.5 text-xs font-medium', productColor(p))}
-                >
-                  {productLabel(p)}
-                </span>
-              ))}
-            </div>
-          </div>
+          </Section>
 
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500">UTM / Origem</h2>
-            <div className="space-y-1">
-              <InfoRow label="Source" value={contact.utm_source} />
-              <InfoRow label="Medium" value={contact.utm_medium} />
-              <InfoRow label="Campaign" value={contact.utm_campaign} />
-              <InfoRow label="Term" value={contact.utm_term} />
+          <Section title="Informações - Skills">
+            <div className="space-y-0">
+              <InfoRow label="Empresa" value={contact.company} />
+              <InfoRow label="Cargo" value={contact.cargo} />
+              <InfoRow label="Nº Liderados" value={contact.numero_de_liderados} />
+              <InfoRow label="Faturamento" value={contact.faixa_de_faturamento} />
+              <InfoRow label="Área de Atuação" value={contact.area_atuacao} />
             </div>
-          </div>
+          </Section>
+
+          <Section title="Localização">
+            <div className="space-y-0">
+              <InfoRow label="Cidade" value={contact.city} />
+              <InfoRow label="Estado" value={contact.state} />
+              <InfoRow label="Endereço" value={contact.address} />
+              <InfoRow label="CEP" value={contact.zip_code} />
+              <InfoRow label="País" value={contact.country} />
+            </div>
+          </Section>
+
+          <Section title="UTM / Marketing">
+            <div className="space-y-0">
+              <InfoRow label="utm_source" value={contact.utm_source} />
+              <InfoRow label="utm_medium" value={contact.utm_medium} />
+              <InfoRow label="utm_campaign" value={contact.utm_campaign} />
+              <InfoRow label="utm_term" value={contact.utm_term} />
+              <InfoRow label="1ª Conversão" value={contact.first_conversion} />
+              <InfoRow label="Data 1ª Conv." value={contact.first_conversion_date ? formatDate(contact.first_conversion_date) : null} />
+              <InfoRow label="LinkedIn" value={contact.linkedin_url} />
+              <InfoRow label="Website" value={contact.website_url} />
+            </div>
+          </Section>
         </div>
 
-        {/* Right panel: Activity Timeline */}
+        {/* CENTER + RIGHT COLUMNS */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
-            <h2 className="mb-4 text-sm font-semibold uppercase text-gray-500">Atividades Recentes</h2>
-            <div className="space-y-4">
-              {mockActivities.map((activity) => (
-                <div key={activity.id} className="flex gap-3">
-                  <div className={cn('flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full', activityIcon[activity.type])}>
-                    {activity.type === 'email' && <Mail className="h-4 w-4" />}
-                    {activity.type === 'call' && <Phone className="h-4 w-4" />}
-                    {activity.type === 'whatsapp' && <Phone className="h-4 w-4" />}
-                    {activity.type === 'meeting' && <Briefcase className="h-4 w-4" />}
-                    {activity.type === 'note' && <Clock className="h-4 w-4" />}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{activity.subject}</p>
-                    <p className="text-xs text-gray-500">{activity.body}</p>
-                    <p className="mt-1 text-[11px] text-gray-400">
-                      {new Date(activity.created_at).toLocaleDateString('pt-BR', {
-                        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-                      })}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Associated Deals */}
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
-            <h2 className="mb-4 text-sm font-semibold uppercase text-gray-500">Deals Associados</h2>
+          {/* Deals Associados */}
+          <Section title={`Negócios (${contact.deals?.length ?? 0})`}>
             {contact.deals && contact.deals.length > 0 ? (
               <div className="space-y-2">
-                {contact.deals.map((deal: Deal) => (
+                {contact.deals.map((deal: DealWithStage) => (
                   <div
                     key={deal.id}
                     onClick={() => navigate(`/deals/${deal.id}`)}
@@ -164,21 +200,72 @@ export default function ContactDetail() {
                   >
                     <div>
                       <p className="text-sm font-medium text-gray-900">{deal.name}</p>
-                      <span className={cn('mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium', qualificationColor(deal.qualification_status))}>
-                        {deal.qualification_status.toUpperCase()}
-                      </span>
+                      <div className="mt-1 flex items-center gap-2">
+                        {deal.stages && (
+                          <span className={cn(
+                            'rounded-full px-2 py-0.5 text-xs font-medium',
+                            deal.is_won === true ? 'bg-green-100 text-green-700' :
+                            deal.is_won === false ? 'bg-red-100 text-red-700' :
+                            'bg-blue-100 text-blue-700'
+                          )}>
+                            {deal.stages.name}
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-400 capitalize">{deal.product}</span>
+                      </div>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-gray-800">{formatCurrency(deal.amount)}</p>
-                      <p className="text-xs text-gray-400">{productLabel(deal.product)}</p>
+                      {deal.closed_at && (
+                        <p className="text-xs text-gray-400">{formatDate(deal.closed_at)}</p>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400">Nenhum deal associado</p>
+              <p className="text-sm text-gray-400">Nenhum negócio associado</p>
             )}
-          </div>
+          </Section>
+
+          {/* Atividades */}
+          <Section title="Atividades">
+            {activities.length > 0 ? (
+              <div className="space-y-4">
+                {activities.map((activity) => {
+                  const config = activityIcon[activity.type] ?? activityIcon.note
+                  const IconComponent = config.Icon
+                  return (
+                    <div key={activity.id} className="flex gap-3">
+                      <div className={cn('flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full', config.bg)}>
+                        <IconComponent className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">{activity.subject ?? activity.type}</p>
+                        {activity.body && <p className="text-xs text-gray-500 truncate">{activity.body}</p>}
+                        <p className="mt-1 text-[11px] text-gray-400">
+                          {formatDateTime(activity.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">Nenhuma atividade registrada</p>
+            )}
+          </Section>
+
+          {/* Metadados */}
+          <Section title="Metadados">
+            <div className="space-y-0">
+              <InfoRow label="ID" value={contact.id} />
+              <InfoRow label="HubSpot ID" value={contact.hubspot_id?.toString()} />
+              <InfoRow label="Criado em" value={formatDateTime(contact.created_at)} />
+              <InfoRow label="Última atividade" value={contact.last_activity_at ? formatDateTime(contact.last_activity_at) : null} />
+              <InfoRow label="HubSpot Owner" value={contact.hubspot_owner} />
+            </div>
+          </Section>
         </div>
       </div>
     </div>
