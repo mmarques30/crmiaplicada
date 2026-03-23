@@ -1,5 +1,5 @@
 // Edge Function: Webhook para receber eventos do ManyChat
-// Registra mensagens WhatsApp na timeline do contato e pode avancar estagio do deal
+// Registra mensagens WhatsApp e Instagram na timeline do contato e pode avancar estagio do deal
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -11,7 +11,15 @@ interface ManyChatEvent {
   last_name?: string
   message?: string
   flow_name?: string
+  channel?: string // 'whatsapp' | 'instagram' | 'facebook' — sent by ManyChat
   custom_fields?: Record<string, string>
+}
+
+function detectChannel(event: ManyChatEvent): 'whatsapp' | 'instagram' {
+  if (event.channel === 'instagram') return 'instagram'
+  if (event.channel === 'ig') return 'instagram'
+  if (event.subscriber_id?.startsWith('ig_')) return 'instagram'
+  return 'whatsapp'
 }
 
 Deno.serve(async (req) => {
@@ -29,6 +37,8 @@ Deno.serve(async (req) => {
 
   try {
     const event: ManyChatEvent = await req.json()
+    const channel = detectChannel(event)
+    const isInstagram = channel === 'instagram'
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -66,16 +76,24 @@ Deno.serve(async (req) => {
 
     // Se contato nao existe, criar um novo
     if (!contact) {
+      const insertData: Record<string, unknown> = {
+        first_name: event.first_name || (isInstagram ? 'Instagram Lead' : 'WhatsApp Lead'),
+        last_name: event.last_name || null,
+        phone: event.phone || null,
+        email: event.email || null,
+        manychat_id: event.subscriber_id,
+        utm_source: isInstagram ? 'instagram' : undefined,
+        utm_medium: isInstagram ? 'social' : undefined,
+      }
+      if (isInstagram) {
+        insertData.instagram_opt_in = true
+      } else {
+        insertData.whatsapp_opt_in = true
+      }
+
       const { data, error } = await supabase
         .from('contacts')
-        .insert({
-          first_name: event.first_name || 'WhatsApp Lead',
-          last_name: event.last_name || null,
-          phone: event.phone || null,
-          email: event.email || null,
-          manychat_id: event.subscriber_id,
-          whatsapp_opt_in: true,
-        })
+        .insert(insertData)
         .select()
         .single()
 
@@ -83,25 +101,35 @@ Deno.serve(async (req) => {
       contact = data
     } else {
       // Atualizar manychat_id e opt-in se necessario
+      const updateData: Record<string, unknown> = {
+        manychat_id: event.subscriber_id,
+      }
+      if (isInstagram) {
+        updateData.instagram_opt_in = true
+        if (!contact.utm_source) {
+          updateData.utm_source = 'instagram'
+          updateData.utm_medium = 'social'
+        }
+      } else {
+        updateData.whatsapp_opt_in = true
+      }
       await supabase
         .from('contacts')
-        .update({
-          manychat_id: event.subscriber_id,
-          whatsapp_opt_in: true,
-        })
+        .update(updateData)
         .eq('id', contact.id)
     }
 
     // Registrar atividade na timeline
     await supabase.from('activities').insert({
       contact_id: contact.id,
-      type: 'whatsapp',
+      type: channel,
       direction: 'inbound',
-      subject: event.flow_name || 'Mensagem WhatsApp',
+      subject: event.flow_name || (isInstagram ? 'Mensagem Instagram' : 'Mensagem WhatsApp'),
       body: event.message || null,
       metadata: {
         subscriber_id: event.subscriber_id,
         flow_name: event.flow_name,
+        channel,
         custom_fields: event.custom_fields,
       },
     })
@@ -155,7 +183,7 @@ Deno.serve(async (req) => {
           .from('activities')
           .update({ deal_id: deal.id })
           .eq('contact_id', contact.id)
-          .eq('type', 'whatsapp')
+          .eq('type', channel)
           .is('deal_id', null)
           .order('created_at', { ascending: false })
           .limit(1)
